@@ -7,14 +7,23 @@ import * as fs from "fs";
 
 const { path, only } = getCliParams();
 const { dirs: rootDirs, files: rootFiles } = getDirContents(path);
-let filecount = 0;
+const abnormalFiles: string[] = [];
+let scannedCount = 0;
+let changedCount = 0;
 
 const dirStack = [...rootDirs.filter((x) => only.includes(x.name))];
 const fileStack = [...(rootFiles["php"] ?? [])];
 
 exploreRecursively(dirStack, fileStack);
 
-console.log(`${filecount} file${filecount > 1 ? "s" : ""} affected`);
+console.log(
+  `${scannedCount} file${
+    scannedCount > 1 ? "s" : ""
+  } scanned, ${changedCount} changed`
+);
+if (abnormalFiles.length > 0) {
+  console.log(`Some abnormal files found:`, abnormalFiles);
+}
 
 function exploreRecursively(
   dirStack: fs.Dirent[],
@@ -33,15 +42,15 @@ function exploreRecursively(
 
   exploreRecursively(dirStack, fileStack);
 
-  // todo: check if doc malformed, if yes, push
   fileStack.push(...(files["php"] ?? []));
 
   while (fileStack.length > 0) {
     const currFile = fileStack.pop();
     if (!currFile) break;
 
-    filecount++;
     console.log("file", currFile.name);
+    scannedCount++;
+    fixMalformedDoc(currFile);
   }
 }
 
@@ -89,6 +98,40 @@ function setProcessError(msg: string): void {
   process.exitCode = 1;
 }
 
-function fileHasMalformedDocs() {
-  //
+function fixMalformedDoc(fileDirent: fs.Dirent) {
+  const malformedRgx = /^\/\*[^*].+\*\/$/gm;
+  const filepath = fileDirent.parentPath + `\\${fileDirent.name}`;
+  let content = fs.readFileSync(filepath).toString();
+  const pendingChanges: [string, string][] = [];
+  const matches = [...content.matchAll(malformedRgx)];
+
+  if (matches.length === 0) return;
+  // console.log(matches);
+  // console.log(matches.map((x) => x[0]));
+
+  for (let match of matches) {
+    const components = match[0].split(" ");
+    if (components[1].charAt(0) !== "@") continue;
+    if (components[2].charAt(0) !== "$") {
+      abnormalFiles.push(filepath);
+      continue;
+    }
+
+    components[0] = components[0] + "*";
+    [components[2], components[3]] = [components[3], components[2]];
+
+    pendingChanges.push([match[0], components.join(" ")]);
+  }
+
+  // console.log(pendingChanges);
+
+  for (let changes of pendingChanges) {
+    content = content.replace(changes[0], changes[1]);
+  }
+
+  // console.log(content);
+
+  fs.writeFileSync(filepath, content);
+
+  changedCount++;
 }
