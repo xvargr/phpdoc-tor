@@ -1,8 +1,3 @@
-// dfs recursively through all files in directory
-// read file
-// find phpdoc comments and fix them
-// save the file
-
 import * as fs from "fs";
 
 const { path, only } = getCliParams();
