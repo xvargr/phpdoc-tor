@@ -9,12 +9,16 @@ let changedCount = 0;
 const dirStack = [...rootDirs.filter((x) => only.includes(x.name))];
 const fileStack = [...(rootFiles["php"] ?? [])];
 
+const profilerStart = performance.now();
 exploreRecursively(dirStack, fileStack);
+const profilerEnd = performance.now();
 
 console.log(
   `${scannedCount} file${
     scannedCount > 1 ? "s" : ""
-  } scanned, ${changedCount} changed`
+  } scanned, ${changedCount} changed, completed in ${Math.floor(
+    profilerEnd - profilerStart
+  )}ms`
 );
 if (abnormalFiles.length > 0) {
   console.log(`Some abnormal files found:`, abnormalFiles);
